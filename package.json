@@ -100,7 +100,7 @@
     "replace-in-file": "^3.4.2",
     "rimraf": "^2.6.2",
     "rollup": "1.27.4",
-    "semantic-release": "^15.9.16",
+    "semantic-release": "^15.13.31",
     "shelljs": "^0.8.3",
     "ts-jest": "^24.1.0",
     "ts-node": "^7.0.1",
