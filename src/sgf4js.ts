@@ -5,20 +5,28 @@ export default class Sgf4js {
     let game = new Game()
     let currentNode: Node | undefined
     let parentNodes = new Array()
+
     for (let i = 0; i < sgf.length; i++) {
+      let prevCh = ''
+      if (i > 0) prevCh = sgf.charAt(i - 1)
       let ch = sgf.charAt(i)
 
       // rootNode or a new subNode
       if (ch == '(') {
-        if (currentNode == null) {
+        // we have the start of main line
+        if (game.rootNode == undefined) {
           currentNode = new Node(undefined)
           game.rootNode = currentNode
         }
-        // we have branching!
+        // we have branching
         else {
           let newNode = new Node(undefined)
-          currentNode.addChild(newNode)
-          newNode.setParent(currentNode)
+          debugger
+          if (currentNode?.isEmpty()) {
+            currentNode = currentNode.prevNode
+          }
+          currentNode!.addChild(newNode)
+          newNode.setParent(currentNode!)
           parentNodes.push(currentNode)
           currentNode = newNode
         }
@@ -27,27 +35,27 @@ export default class Sgf4js {
         i = token[0] - 1
 
         let props = Sgf4js.parseTokenToProps(token[1])
-        let node = new Node(currentNode, props)
-        if (currentNode) {
-          currentNode.nextNode = node
-          currentNode = node
-        } else {
-          currentNode = node
-        }
+
+        currentNode!.props = props
 
         if (ch == ')') {
-          currentNode = parentNodes.pop()
+          if (parentNodes.length > 0) {
+            currentNode = parentNodes.pop()
+            let node = new Node(currentNode, undefined)
+            currentNode!.nextNode = node
+            currentNode = node
+          }
+        } else if (ch == ';') {
+          // if we already have an empty node no need to
+          // create a new one - this cleans up the last
+          // empty node that would appear by design
+          if (!currentNode!.isEmpty()) {
+            let node = new Node(currentNode, undefined)
+            currentNode!.nextNode = node
+            currentNode = node
+          }
         }
       }
-    }
-    // remove the last added node as the logic creates actually an empty node in the end
-    // we'll just remove the reference to it
-    if (
-      currentNode != null &&
-      currentNode.props.size == 0 &&
-      currentNode.prevNode != null
-    ) {
-      currentNode!.prevNode!.nextNode = undefined
     }
     return game
   }
@@ -95,7 +103,7 @@ export default class Sgf4js {
     for (let i = startIdx; i < sgf.length; i++) {
       let ch = sgf.charAt(i)
 
-      if (ch == ';' || ch == ')') {
+      if (ch == ';' || ch == ')' || ch == '(') {
         return [i, rtrnString.join('')]
       }
       rtrnString.push(ch)
@@ -105,10 +113,42 @@ export default class Sgf4js {
 }
 
 class Game {
-  rootNode: Node
+  private noMoves: number = -1
+  private noNodes: number = -1
+  rootNode: Node | undefined
 
-  constructor() {
-    this.rootNode = new Node(undefined, undefined)
+  constructor() {}
+
+  public getNoNodes(): number {
+    if (this.noNodes == -1) {
+      this.postProcess()
+    }
+    return this.noNodes
+  }
+
+  public getNoMoves(): number {
+    if (this.noMoves == -1) {
+      this.postProcess()
+    }
+    return this.noMoves
+  }
+
+  public getProps(): Map<string, string> {
+    return this.rootNode!.props
+  }
+
+  public postProcess() {
+    let tmpNode = this.rootNode!
+    this.noMoves = 0
+    this.noNodes = 0
+
+    while (tmpNode.hasNext()) {
+      this.noNodes++
+      if (tmpNode.isMove()) {
+        this.noMoves++
+      }
+      tmpNode = tmpNode.nextNode!
+    }
   }
 }
 
@@ -124,6 +164,16 @@ class Node {
     if (props) {
       this.props = props
     }
+  }
+
+  public isEmpty(): boolean {
+    if (this.props.size > 0) return false
+
+    if (this.nextNode != undefined) return false
+
+    if (this.children.size > 0) return false
+
+    return true
   }
 
   setParent(node: Node) {
